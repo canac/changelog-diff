@@ -4,6 +4,8 @@ import { green, red } from 'chalk';
 import { diffLines } from 'diff';
 import { asyncCycle, asyncForEach, asyncZip } from 'iter-tools';
 import { readFile, writeFile } from 'jsonfile';
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
 
 const token = process.env.GITHUB_TOKEN;
 if (!token) {
@@ -109,7 +111,7 @@ async function* promiseToAsyncGenerator<T>(promise: Promise<T>): AsyncGenerator<
   yield await promise;
 }
 
-async function run() {
+async function run(persistSnapshot: boolean) {
   const currentSnapshot: ChangelogSnapshot = Object.create(null) as ChangelogSnapshot;
 
   await asyncForEach(
@@ -135,9 +137,17 @@ async function run() {
     ),
   );
 
-  await saveSnapshot(currentSnapshot);
+  if (persistSnapshot) {
+    await saveSnapshot(currentSnapshot);
+  }
 }
 
-run().catch((err) => {
+const { argv } = yargs(hideBin(process.argv))
+  .option('save', {
+    alias: 's',
+    type: 'boolean',
+    description: 'Update snapshot',
+  });
+run(argv.save ?? false).catch((err) => {
   console.error(err);
 });

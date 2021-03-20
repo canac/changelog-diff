@@ -17,6 +17,9 @@ type QueryResponse = {
     starredRepositories: {
       nodes: {
         nameWithOwner: string;
+        content: {
+          text: string;
+        } | null;
       }[];
       pageInfo: {
         endCursor: string;
@@ -26,7 +29,12 @@ type QueryResponse = {
   };
 };
 
-async function* getRepos(): AsyncGenerator<string, void, undefined> {
+type Changelog = {
+  repo: string;
+  content: string;
+}
+
+async function* getChangelogs(): AsyncGenerator<Changelog, void, undefined> {
   let page = '';
   while (true) {
     // eslint-disable-next-line no-await-in-loop
@@ -35,6 +43,11 @@ async function* getRepos(): AsyncGenerator<string, void, undefined> {
           starredRepositories(after: $afterCursor) {
             nodes {
               nameWithOwner
+              content: object(expression: "HEAD:CHANGELOG.md") {
+                ... on Blob {
+                  text
+                }
+              }
             }
             pageInfo {
               endCursor
@@ -46,7 +59,18 @@ async function* getRepos(): AsyncGenerator<string, void, undefined> {
       afterCursor: page,
     });
     const { nodes: repos, pageInfo } = data.viewer.starredRepositories;
-    yield* repos.map((repo) => repo.nameWithOwner);
+
+    const changelogs: Array<Changelog> = repos.flatMap((repo): Changelog[] => {
+      if (!repo.content) {
+        return [];
+      }
+
+      return [{
+        repo: repo.nameWithOwner,
+        content: repo.content.text,
+      }];
+    });
+    yield* changelogs;
 
     if (!pageInfo.hasNextPage) {
       break;
@@ -58,7 +82,7 @@ async function* getRepos(): AsyncGenerator<string, void, undefined> {
 
 async function run() {
   // eslint-disable-next-line no-restricted-syntax
-  for await (const repo of getRepos()) {
+  for await (const repo of getChangelogs()) {
     console.log(repo);
   }
 }

@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { graphql } from '@octokit/graphql';
+import { readFile, writeFile } from 'jsonfile';
 
 const token = process.env.GITHUB_TOKEN;
 if (!token) {
@@ -33,6 +34,8 @@ type Changelog = {
   repo: string;
   content: string;
 }
+
+type ChangelogSnapshot = Record<string, string>;
 
 async function* getChangelogs(): AsyncGenerator<Changelog, void, undefined> {
   let page = '';
@@ -80,11 +83,35 @@ async function* getChangelogs(): AsyncGenerator<Changelog, void, undefined> {
   }
 }
 
-async function run() {
-  // eslint-disable-next-line no-restricted-syntax
-  for await (const repo of getChangelogs()) {
-    console.log(repo);
+const snapshotFile = 'snapshot.json';
+
+async function loadSnapshot(): Promise<ChangelogSnapshot> {
+  try {
+    const snapshot = (await readFile(snapshotFile)) as ChangelogSnapshot;
+    return snapshot;
+  } catch (err: unknown) {
+    if (err.code === 'ENOENT') {
+      return {};
+    }
+
+    throw err;
   }
+}
+
+async function saveSnapshot(snapshot: ChangelogSnapshot): Promise<void> {
+  await writeFile(snapshotFile, snapshot);
+}
+
+async function run() {
+  const previousSnapshot = await loadSnapshot();
+  const currentSnapshot: ChangelogSnapshot = Object.create(null) as ChangelogSnapshot;
+
+  // eslint-disable-next-line no-restricted-syntax
+  for await (const changelog of getChangelogs()) {
+    currentSnapshot[changelog.repo] = changelog.content;
+  }
+
+  await saveSnapshot(currentSnapshot);
 }
 
 run().catch((err) => {

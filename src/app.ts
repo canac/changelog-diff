@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { graphql } from '@octokit/graphql';
+import { green, red } from 'chalk';
 import { diffLines } from 'diff';
 import { readFile, writeFile } from 'jsonfile';
 
@@ -120,8 +121,9 @@ async function run() {
 
     console.log(repo);
     console.log('----------');
-    changes.forEach(({ value, added, removed }) => {
-      console.log(`${value} ${added ? 'added' : ''} ${removed ? 'removed' : ''}`);
+    changes.forEach(({ value, added }) => {
+      const color = added ? green : red;
+      console.log(color(value));
     });
   }
 

@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { graphql } from '@octokit/graphql';
+import { diffLines } from 'diff';
 import { readFile, writeFile } from 'jsonfile';
 
 const token = process.env.GITHUB_TOKEN;
@@ -107,14 +108,26 @@ async function run() {
   const currentSnapshot: ChangelogSnapshot = Object.create(null) as ChangelogSnapshot;
 
   // eslint-disable-next-line no-restricted-syntax
-  for await (const changelog of getChangelogs()) {
-    currentSnapshot[changelog.repo] = changelog.content;
+  for await (const { repo, content } of getChangelogs()) {
+    currentSnapshot[repo] = content;
+
+    const previousChangelog = previousSnapshot[repo] ?? '';
+    const changes = diffLines(previousChangelog, content).filter(({ added, removed }) => added || removed);
+    if (changes.length === 0) {
+      // eslint-disable-next-line no-continue
+      continue;
+    }
+
+    console.log(repo);
+    console.log('----------');
+    changes.forEach(({ value, added, removed }) => {
+      console.log(`${value} ${added ? 'added' : ''} ${removed ? 'removed' : ''}`);
+    });
   }
 
   await saveSnapshot(currentSnapshot);
 }
 
 run().catch((err) => {
-  // eslint-disable-next-line no-console
   console.error(err);
 });

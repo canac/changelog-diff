@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { graphql } from '@octokit/graphql';
 import { green, red } from 'chalk';
 import { diffLines } from 'diff';
+import { asyncForEach, asyncZip, repeat } from 'iter-tools';
 import { readFile, writeFile } from 'jsonfile';
 
 const token = process.env.GITHUB_TOKEN;
@@ -105,27 +106,30 @@ async function saveSnapshot(snapshot: ChangelogSnapshot): Promise<void> {
 }
 
 async function run() {
-  const previousSnapshot = await loadSnapshot();
   const currentSnapshot: ChangelogSnapshot = Object.create(null) as ChangelogSnapshot;
 
-  // eslint-disable-next-line no-restricted-syntax
-  for await (const { repo, content } of getChangelogs()) {
-    currentSnapshot[repo] = content;
+  await asyncForEach(
+    ([{ repo, content }, previousSnapshot]) => {
+      currentSnapshot[repo] = content;
 
-    const previousChangelog = previousSnapshot[repo] ?? '';
-    const changes = diffLines(previousChangelog, content).filter(({ added, removed }) => added || removed);
-    if (changes.length === 0) {
-      // eslint-disable-next-line no-continue
-      continue;
-    }
+      const previousChangelog = previousSnapshot[repo] ?? '';
+      const changes = diffLines(previousChangelog, content).filter(({ added, removed }) => added || removed);
+      if (changes.length === 0) {
+        return;
+      }
 
-    console.log(repo);
-    console.log('----------');
-    changes.forEach(({ value, added }) => {
-      const color = added ? green : red;
-      console.log(color(value));
-    });
-  }
+      console.log(repo);
+      console.log('----------');
+      changes.forEach(({ value, added }) => {
+        const color = added ? green : red;
+        console.log(color(value));
+      });
+    },
+    asyncZip(
+      getChangelogs(),
+      repeat(await loadSnapshot()),
+    ),
+  );
 
   await saveSnapshot(currentSnapshot);
 }

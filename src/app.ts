@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { graphql } from '@octokit/graphql';
 import { green, red } from 'chalk';
 import { diffLines } from 'diff';
-import { asyncForEach, asyncZip, repeat } from 'iter-tools';
+import { asyncCycle, asyncForEach, asyncZip } from 'iter-tools';
 import { readFile, writeFile } from 'jsonfile';
 
 const token = process.env.GITHUB_TOKEN;
@@ -105,6 +105,10 @@ async function saveSnapshot(snapshot: ChangelogSnapshot): Promise<void> {
   await writeFile(snapshotFile, snapshot);
 }
 
+async function* promiseToAsyncGenerator<T>(promise: Promise<T>): AsyncGenerator<T> {
+  yield await promise;
+}
+
 async function run() {
   const currentSnapshot: ChangelogSnapshot = Object.create(null) as ChangelogSnapshot;
 
@@ -127,7 +131,7 @@ async function run() {
     },
     asyncZip(
       getChangelogs(),
-      repeat(await loadSnapshot()),
+      asyncCycle(promiseToAsyncGenerator(loadSnapshot())),
     ),
   );
 

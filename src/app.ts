@@ -107,10 +107,6 @@ async function saveSnapshot(snapshot: ChangelogSnapshot): Promise<void> {
   await writeFile(snapshotFile, snapshot);
 }
 
-async function* promiseToAsyncGenerator<T>(promise: Promise<T>): AsyncGenerator<T> {
-  yield await promise;
-}
-
 async function run(persistSnapshot: boolean) {
   const currentSnapshot: ChangelogSnapshot = Object.create(null) as ChangelogSnapshot;
 
@@ -133,7 +129,7 @@ async function run(persistSnapshot: boolean) {
     },
     asyncZip(
       getChangelogs(),
-      asyncCycle(promiseToAsyncGenerator(loadSnapshot())),
+      asyncCycle([loadSnapshot()]),
     ),
   );
 
